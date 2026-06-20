@@ -38,6 +38,29 @@ export interface Story {
   image?: string;
 }
 
+export interface Moshaf {
+  id: number;
+  name: string;
+  server: string;
+  surah_list: string;
+}
+
+export interface Reciter {
+  id: number;
+  name: string;
+  letter: string;
+  moshaf: Moshaf[];
+}
+
+export interface APISurah {
+  id: number;
+  name: string;
+  start_page: number;
+  end_page: number;
+  makkia: number; // 1 for Meccan, 0 for Medinan
+  type: number;
+}
+
 export interface AppState {
   lastRead: Bookmark | null;
   bookmarks: Bookmark[];

@@ -28,6 +28,7 @@ import SettingsSection from './components/SettingsSection';
 import SurahReader from './components/SurahReader';
 import StoriesSection from './components/StoriesSection';
 import QuizSection from './components/QuizSection';
+import GlobalMiniPlayer from './components/GlobalMiniPlayer';
 
 type Screen = 'home' | 'quran' | 'duas' | 'stories' | 'tasbeeh' | 'settings' | 'reader' | 'quiz';
 
@@ -220,6 +221,9 @@ export default function App() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Global Mini Player for continuous audio listening */}
+      {currentScreen !== 'reader' && <GlobalMiniPlayer />}
 
       {/* Navigation Bar */}
       {currentScreen !== 'reader' && (

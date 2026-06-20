@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Book, Heart, CircleDot, ChevronRight, ArrowLeft, BookOpen, Smartphone, ShieldCheck, WifiOff, Trophy } from 'lucide-react';
+import { Book, Heart, CircleDot, ChevronRight, ArrowLeft, BookOpen, Smartphone, ShieldCheck, WifiOff, Trophy, Volume2 } from 'lucide-react';
 import { AppState, Surah } from '../types';
 import { SURAHS } from '../constants';
 import { cn } from '../lib/utils';
@@ -51,7 +51,7 @@ export default function Home({ state, onNavigate, onSurahClick }: HomeProps) {
       <header className="flex justify-between items-start">
         <div>
           <h1 className="text-4xl font-bold tracking-tight mb-1">حقيبة المسلم</h1>
-          <p className="text-gold-accent text-xs font-medium tracking-wide">أهـلاً بـك يـا أخـي المسـلم • يعمل كلياً بدون إنترنت</p>
+          <p className="text-gold-accent text-xs font-medium tracking-wide">أهـلاً بـك يـا أخـي المسـلم • تصفح واستمع للتلاوات العطرة</p>
         </div>
       </header>
 
@@ -169,6 +169,29 @@ export default function Home({ state, onNavigate, onSurahClick }: HomeProps) {
             </div>
           </div>
         </div>
+      </motion.div>
+
+      {/* Recitations Audio Library Launcher Card */}
+      <motion.div 
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => onNavigate('quran')}
+        className="glass-card-accent p-6 flex items-center justify-between cursor-pointer group border border-gold-accent/20 hover:border-gold-accent/40 bg-white/5 transition-all shadow-lg overflow-hidden relative"
+      >
+        <div className="absolute top-0 left-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
+          <Volume2 size={95} className="-rotate-12 translate-x-3 translate-y-2 text-gold-accent animate-pulse" />
+        </div>
+        <div className="flex items-center gap-4 relative z-10 text-right">
+          <div className="w-12 h-12 rounded-2xl bg-gold-accent/15 flex items-center justify-center text-gold-accent group-hover:bg-gold-accent group-hover:text-black transition-all shadow-inner shrink-0">
+            <Volume2 size={24} />
+          </div>
+          <div>
+            <h3 className="font-extrabold text-base text-white group-hover:text-gold-accent transition-colors">مكتبة التلاوات العطرة</h3>
+            <p className="text-[11px] text-white/50 mt-1 leading-relaxed">استمع لأعذب قراءات القرآن الكريم بمختلف الروايات لأكثر من ١٠٠ قارئ شهير مباشرة.</p>
+          </div>
+        </div>
+        <ChevronRight size={18} className="text-white/20 group-hover:text-gold-accent transition-colors rotate-180 shrink-0 mr-2" />
       </motion.div>
 
       {/* Features Grid */}
