@@ -87,9 +87,10 @@ export default function RecitationsSection() {
   // Handle Reciter Choice
   const handleSelectReciter = (reciter: Reciter) => {
     setSelectedReciter(reciter);
-    // Auto-select the first moshaf
+    // Auto-select standard Hafs recitation if available, or fall back to the first available moshaf
     if (reciter.moshaf && reciter.moshaf.length > 0) {
-      setSelectedMoshaf(reciter.moshaf[0]);
+      const hafsMoshaf = reciter.moshaf.find(m => m.name.includes("حفص") || m.name.includes("Hafs") || m.name.includes("حفص عن عاصم"));
+      setSelectedMoshaf(hafsMoshaf || reciter.moshaf[0]);
     } else {
       setSelectedMoshaf(null);
     }
@@ -224,11 +225,6 @@ export default function RecitationsSection() {
                                 {firstMoshaf.name.replace("المصحف المرتل", "مرتل")}
                               </span>
                             )}
-                            {reciter.moshaf && reciter.moshaf.length > 1 && (
-                              <span className="text-[9px] text-gold-accent/80 bg-gold-accent/10 px-2 py-0.5 rounded-full font-bold">
-                                +{reciter.moshaf.length - 1} روايات أخرى
-                              </span>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -266,33 +262,10 @@ export default function RecitationsSection() {
                 </span>
                 <h3 className="text-2xl font-black text-white">{selectedReciter.name}</h3>
                 
-                {/* Riwayat/Moshaf dropdown chooser */}
-                {selectedReciter.moshaf && selectedReciter.moshaf.length > 1 ? (
-                  <div className="flex flex-col gap-1.5 pt-2">
-                    <span className="text-[10px] font-bold text-white/40">اختر الرواية / نوع المصحف:</span>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedReciter.moshaf.map(m => (
-                        <button
-                          key={m.id}
-                          onClick={() => setSelectedMoshaf(m)}
-                          className={cn(
-                            "px-3 py-1.5 rounded-xl text-[10px] font-bold transition-all border",
-                            selectedMoshaf?.id === m.id 
-                              ? "bg-gold-accent text-emerald-950 border-gold-bright shadow-md scale-105" 
-                              : "bg-white/5 text-white/60 border-white/5 hover:bg-white/10"
-                          )}
-                        >
-                          {m.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-xs text-white/50 font-bold flex items-center gap-1.5 pt-1">
-                    <span>الرواية:</span>
-                    <span className="text-gold-accent">{selectedMoshaf?.name || 'حفص عن عاصم'}</span>
-                  </p>
-                )}
+                <p className="text-xs text-white/50 font-bold flex items-center gap-1.5 pt-1">
+                  <span>المصحف:</span>
+                  <span className="text-gold-accent">{selectedMoshaf?.name || 'حفص عن عاصم'}</span>
+                </p>
               </div>
             </motion.div>
           </div>

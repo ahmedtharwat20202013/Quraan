@@ -19,6 +19,7 @@ class AudioPlayerServiceImpl {
   private audio: HTMLAudioElement | null = null;
   private listeners: Set<AudioListener> = new Set();
   private updateInterval: any = null;
+  private playPromise: Promise<void> | null = null;
   
   // List of all suwar context for auto-advancing
   private suwarList: APISurah[] = [];
@@ -200,9 +201,15 @@ class AudioPlayerServiceImpl {
       this.audio.src = finalUrl;
       this.audio.playbackRate = this.state.playbackRate;
       this.audio.load();
-      await this.audio.play();
-    } catch (err) {
-      console.error('Playing audio failed:', err);
+      const p = this.audio.play();
+      if (p !== undefined) {
+        this.playPromise = p;
+        await p;
+      }
+    } catch (err: any) {
+      if (err && err.name !== 'AbortError') {
+        console.error('Playing audio failed:', err);
+      }
       this.state.isBuffering = false;
       this.state.isPlaying = false;
       this.notifyListeners();
@@ -213,28 +220,50 @@ class AudioPlayerServiceImpl {
     if (!this.audio || !this.state.audioUrl) return;
 
     if (this.state.isPlaying) {
-      this.audio.pause();
+      this.pause();
     } else {
-      this.audio.play().catch(console.error);
+      this.play();
     }
   }
 
   pause() {
-    if (this.audio && this.state.isPlaying) {
-      this.audio.pause();
+    if (this.audio) {
+      try {
+        this.audio.pause();
+      } catch (e) {}
     }
   }
 
   play() {
     if (this.audio && this.state.audioUrl && !this.state.isPlaying) {
-      this.audio.play().catch(console.error);
+      try {
+        const p = this.audio.play();
+        if (p !== undefined) {
+          this.playPromise = p;
+          p.catch((err: any) => {
+            if (err && err.name !== 'AbortError') {
+              console.error('Playing audio failed:', err);
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Play trigger failed:', err);
+      }
     }
   }
 
   stop() {
     if (!this.audio) return;
-    this.audio.pause();
-    this.audio.src = '';
+    try {
+      this.audio.pause();
+    } catch (e) {}
+
+    try {
+      this.audio.removeAttribute('src');
+      this.audio.load();
+    } catch (e) {}
+
+    this.playPromise = null;
     this.state = {
       ...this.state,
       isPlaying: false,

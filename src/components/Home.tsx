@@ -176,7 +176,7 @@ export default function Home({ state, onNavigate, onSurahClick }: HomeProps) {
         initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
         whileTap={{ scale: 0.98 }}
-        onClick={() => onNavigate('quran')}
+        onClick={() => onNavigate('listen')}
         className="glass-card-accent p-6 flex items-center justify-between cursor-pointer group border border-gold-accent/20 hover:border-gold-accent/40 bg-white/5 transition-all shadow-lg overflow-hidden relative"
       >
         <div className="absolute top-0 left-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">

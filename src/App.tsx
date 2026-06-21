@@ -14,6 +14,7 @@ import {
   BookOpen,
   ChevronLeft,
   Trophy,
+  Volume2,
 } from 'lucide-react';
 import { cn } from './lib/utils';
 import { SURAHS, DUAS } from './constants';
@@ -22,6 +23,7 @@ import { Surah, Dua, AppState, Bookmark, DailyVerse } from './types';
 // Components
 import Home from './components/Home';
 import QuranSection from './components/QuranSection';
+import RecitationsSection from './components/RecitationsSection';
 import DuasSection from './components/DuasSection';
 import TasbeehSection from './components/TasbeehSection';
 import SettingsSection from './components/SettingsSection';
@@ -30,7 +32,7 @@ import StoriesSection from './components/StoriesSection';
 import QuizSection from './components/QuizSection';
 import GlobalMiniPlayer from './components/GlobalMiniPlayer';
 
-type Screen = 'home' | 'quran' | 'duas' | 'stories' | 'tasbeeh' | 'settings' | 'reader' | 'quiz';
+type Screen = 'home' | 'quran' | 'listen' | 'duas' | 'stories' | 'tasbeeh' | 'settings' | 'reader' | 'quiz';
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('home');
@@ -50,6 +52,13 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('quran_light_state', JSON.stringify(state));
   }, [state]);
+
+  // Scroll to top instantly on screen transition
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    document.documentElement.scrollTo({ top: 0, behavior: 'instant' });
+    document.body.scrollTo({ top: 0, behavior: 'instant' });
+  }, [currentScreen]);
 
   const handleSurahClick = useCallback((surah: Surah) => {
     setSelectedSurah(surah);
@@ -85,11 +94,9 @@ export default function App() {
   const navItems = [
     { id: 'home', icon: LayoutGrid, label: 'الرئيسية' },
     { id: 'quran', icon: Book, label: 'المصحف' },
+    { id: 'listen', icon: Volume2, label: 'الاستماع' },
     { id: 'duas', icon: HandHeart, label: 'الأذكار' },
-    { id: 'stories', icon: BookOpen, label: 'قصص' },
-    { id: 'quiz', icon: Trophy, label: 'المسابقات' },
-    { id: 'tasbeeh', icon: CircleDot, label: 'التسبيح' },
-    { id: 'settings', icon: Settings, label: 'الإعدادات' },
+    { id: 'tasbeeh', icon: CircleDot, label: 'تسبيح' },
   ];
 
   return (
@@ -135,6 +142,18 @@ export default function App() {
               className="p-6"
             >
               <QuranSection onSurahClick={handleSurahClick} />
+            </motion.div>
+          )}
+
+          {currentScreen === 'listen' && (
+            <motion.div
+              key="listen"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="p-6"
+            >
+              <RecitationsSection />
             </motion.div>
           )}
 
@@ -226,7 +245,7 @@ export default function App() {
       {currentScreen !== 'reader' && <GlobalMiniPlayer />}
 
       {/* Navigation Bar */}
-      {currentScreen !== 'reader' && (
+      {currentScreen !== 'reader' && currentScreen !== 'quiz' && (
         <div className="fixed bottom-8 left-0 right-0 max-w-md mx-auto z-40 px-8">
           <nav className="bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] p-3 flex justify-around items-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden relative">
             <div className="absolute inset-0 bg-gradient-to-b from-white/5 to-transparent pointer-events-none" />

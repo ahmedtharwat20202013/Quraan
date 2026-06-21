@@ -54,13 +54,55 @@ export default function SurahReader({ surah, onBack, onProgressUpdate, fontSize,
   const [localPdfUrl, setLocalPdfUrl] = useState<string | null>(null);
   const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
   const [isZoomedIn, setIsZoomedIn] = useState(false);
+  const [resolvedPdfUrl, setResolvedPdfUrl] = useState<string>("/quran.pdf");
+  const [isCheckingPdf, setIsCheckingPdf] = useState(true);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<any>(null);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const touchStartX = useRef<number | null>(null);
 
-  const activePdf = localPdfUrl || surah.pdfUrl || "/quran.pdf";
+  useEffect(() => {
+    let active = true;
+    const checkPdf = async () => {
+      setIsCheckingPdf(true);
+      const url = localPdfUrl || surah.pdfUrl || "/quran.pdf";
+      if (localPdfUrl) {
+        if (active) {
+          setResolvedPdfUrl(localPdfUrl);
+          setIsCheckingPdf(false);
+        }
+        return;
+      }
+      try {
+        const response = await fetch(url, { method: 'HEAD' });
+        const contentType = response.headers.get('content-type');
+        if (response.ok && contentType && contentType.includes('pdf')) {
+          if (active) {
+            setResolvedPdfUrl(url);
+            setIsCheckingPdf(false);
+          }
+        } else {
+          // Individual PDF not found, fallback to the main quran.pdf
+          if (active) {
+            setResolvedPdfUrl("/quran.pdf");
+            setIsCheckingPdf(false);
+          }
+        }
+      } catch (err) {
+        if (active) {
+          setResolvedPdfUrl("/quran.pdf");
+          setIsCheckingPdf(false);
+        }
+      }
+    };
+    checkPdf();
+    return () => {
+      active = false;
+    };
+  }, [surah.pdfUrl, localPdfUrl]);
+
+  const activePdf = resolvedPdfUrl;
 
   const resetControlsTimeout = useCallback(() => {
     if (isLocked) return;
@@ -402,7 +444,12 @@ export default function SurahReader({ surah, onBack, onProgressUpdate, fontSize,
                 wrapperClass="!w-full !h-full flex items-center justify-center touch-none select-none"
                 contentClass="!w-full !h-full flex items-center justify-center select-none"
               >
-                {pdfError ? (
+                {isCheckingPdf ? (
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-14 h-14 border-4 border-gold-accent border-t-transparent rounded-full animate-spin shadow-[0_0_20px_rgba(212,175,55,0.3)]" />
+                    <div className="text-gold-accent font-black text-xs uppercase tracking-[0.3em] animate-pulse">جاري التهيئة والتحقق...</div>
+                  </div>
+                ) : pdfError ? (
                   <div className="p-10 text-center space-y-6 max-w-sm bg-[#00140a] rounded-[2rem] border border-gold-accent/20 z-10 shadow-2xl flex flex-col items-center">
                     <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center">
                       <FileUp size={30} className="text-rose-500 animate-pulse" />
