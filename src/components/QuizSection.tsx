@@ -520,15 +520,15 @@ export default function QuizSection({ onBack }: QuizSectionProps) {
               </div>
             </div>
 
-            <div className="relative flex-1 w-full mt-2 min-h-[380px]">
-              <AnimatePresence initial={false}>
+            <div className="relative w-full mt-4 flex flex-col">
+              <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={currentIndex}
                   initial={{ opacity: 0, x: 100, scale: 0.95 }}
                   animate={{ opacity: 1, x: 0, scale: 1 }}
                   exit={{ opacity: 0, x: -100, scale: 0.95 }}
                   transition={{ duration: 0.4, ease: "easeOut" }}
-                  className="absolute inset-0 flex flex-col w-full"
+                  className="relative flex flex-col w-full"
                 >
                   {/* Question Card */}
                   <div className="bg-white rounded-[2rem] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.2)] mb-6 relative border-b-8 border-neutral-200">

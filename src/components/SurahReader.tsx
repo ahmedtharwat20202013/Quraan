@@ -268,7 +268,7 @@ export default function SurahReader({ surah, onBack, onProgressUpdate, fontSize,
   };
 
   // Setup animations for page sliding
-  const slideVariants = {
+  const slideVariants: any = {
     enter: (dir: 'forward' | 'backward') => ({
       opacity: 0,
       x: dir === 'forward' ? -300 : 300,
@@ -435,10 +435,9 @@ export default function SurahReader({ surah, onBack, onProgressUpdate, fontSize,
               wheel={{ step: 0.1 }}
               zoomAnimation={{ animationType: "linear" }}
               doubleClick={{ step: 1.5, mode: "toggle" }}
-              onTransformed={onZoomChange}
+              onTransform={onZoomChange}
               panning={{ disabled: isLocked }}
               pinch={{ disabled: isLocked }}
-              alignmentAnimation={{ animationTime: 200 }}
             >
               <TransformComponent
                 wrapperClass="!w-full !h-full flex items-center justify-center touch-none select-none"
