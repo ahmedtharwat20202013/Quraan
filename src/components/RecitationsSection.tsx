@@ -15,7 +15,8 @@ import {
   RefreshCw,
   Gauge,
   Disc,
-  ListRestart
+  ListRestart,
+  Heart
 } from 'lucide-react';
 import { Reciter, APISurah, Moshaf } from '../types';
 import { QuranApiService } from '../services/api';
@@ -33,8 +34,32 @@ export default function RecitationsSection() {
   const [selectedReciter, setSelectedReciter] = useState<Reciter | null>(null);
   const [selectedMoshaf, setSelectedMoshaf] = useState<Moshaf | null>(null);
   
+  // Favorites for reciters
+  const [favoriteReciterIds, setFavoriteReciterIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('reciter_favorites_list');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [filterTab, setFilterTab] = useState<'all' | 'favorites'>('all');
+  
   // Custom audio player hook
   const audioPlayer = useAudioPlayer();
+
+  const toggleFavoriteReciter = (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const strId = String(id);
+    let updated: string[];
+    if (favoriteReciterIds.includes(strId)) {
+      updated = favoriteReciterIds.filter(x => x !== strId);
+    } else {
+      updated = [...favoriteReciterIds, strId];
+    }
+    setFavoriteReciterIds(updated);
+    localStorage.setItem('reciter_favorites_list', JSON.stringify(updated));
+  };
 
   // Load Reciters & Suwar on Mount
   useEffect(() => {
@@ -74,15 +99,22 @@ export default function RecitationsSection() {
     }
   };
 
-  // Filter Reciters by Search Query
+  // Filter Reciters by Search Query and Favorites
   const filteredReciters = useMemo(() => {
-    if (!searchQuery.trim()) return reciters;
+    let list = reciters;
+    
+    // Filter by tab
+    if (filterTab === 'favorites') {
+      list = list.filter(r => favoriteReciterIds.includes(String(r.id)));
+    }
+    
+    if (!searchQuery.trim()) return list;
     const query = searchQuery.trim().toLowerCase();
-    return reciters.filter(r => 
+    return list.filter(r => 
       r.name.includes(query) || 
       (r.moshaf && r.moshaf.some(m => m.name.toLowerCase().includes(query)))
     );
-  }, [reciters, searchQuery]);
+  }, [reciters, searchQuery, filterTab, favoriteReciterIds]);
 
   // Handle Reciter Choice
   const handleSelectReciter = (reciter: Reciter) => {
@@ -158,6 +190,33 @@ export default function RecitationsSection() {
               className="w-full bg-white/5 border border-white/10 rounded-[1.8rem] py-4 pr-12 pl-6 focus:outline-none focus:border-gold-accent/50 focus:bg-white/10 transition-all placeholder:text-white/20 text-right font-bold text-sm"
             />
           </div>
+
+          {/* Favorites/All Filter Tabs */}
+          <div className="flex gap-2 p-1 bg-white/[0.02] border border-white/5 rounded-2xl">
+            <button
+              onClick={() => setFilterTab('all')}
+              className={cn(
+                "flex-1 py-3 text-xs font-black rounded-xl transition-all relative",
+                filterTab === 'all' 
+                  ? "bg-gold-accent text-neutral-950 shadow-md font-bold" 
+                  : "text-white/40 hover:text-white"
+              )}
+            >
+              كل القراء ({reciters.length})
+            </button>
+            <button
+              onClick={() => setFilterTab('favorites')}
+              className={cn(
+                "flex-1 py-3 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 relative",
+                filterTab === 'favorites' 
+                  ? "bg-rose-500/15 text-rose-300 border border-rose-500/25 shadow-md font-bold" 
+                  : "text-white/40 hover:text-white"
+              )}
+            >
+              <Heart size={14} className={cn(filterTab === 'favorites' ? "fill-current text-rose-400" : "text-white/40")} />
+              المفضلة ({favoriteReciterIds.length})
+            </button>
+          </div>
         </header>
       )}
 
@@ -192,43 +251,57 @@ export default function RecitationsSection() {
           {filteredReciters.length === 0 ? (
             <div className="text-center py-16 space-y-4">
               <div className="text-white/20 w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
-                <HelpCircle size={32} />
+                {filterTab === 'favorites' ? <Heart size={32} className="text-rose-500 animate-pulse" /> : <HelpCircle size={32} />}
               </div>
-              <p className="text-white/40 font-bold">لم نجد قارئاً بهذا الاسم، يرجى كتابة اسم آخر</p>
+              <p className="text-white/50 font-bold max-w-xs mx-auto text-sm leading-relaxed text-center">
+                {filterTab === 'favorites' 
+                  ? "قائمة الشيوخ المفضلة فارغة حالياً. أضف الشيوخ المفضلين لديك بالضغط على أيقونة القلب ❤️ بجوار اسم الشيخ." 
+                  : "لم نجد قارئاً بهذا الاسم، يرجى كتابة اسم آخر"}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AnimatePresence>
                 {filteredReciters.map((reciter) => {
                   const firstMoshaf = reciter.moshaf && reciter.moshaf[0];
+                  const isFav = favoriteReciterIds.includes(String(reciter.id));
                   return (
                     <motion.div
                       key={reciter.id}
                       initial={{ opacity: 0, y: 15 }}
                       animate={{ opacity: 1, y: 0 }}
-                      whileHover={{ scale: 1.01, y: -2 }}
+                      whileHover={{ scale: 1.01, y: -1 }}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => handleSelectReciter(reciter)}
-                      className="glass-card p-6 flex items-center justify-between cursor-pointer group hover:border-gold-accent/30 transition-all shadow-md relative overflow-hidden"
+                      className="glass-card p-5 flex items-center justify-between cursor-pointer group hover:border-gold-accent/30 transition-all shadow-md relative overflow-hidden"
                     >
                       <div className="flex items-center gap-4 relative z-10">
-                        <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-gold-accent/10 transition-all font-black text-gold-accent shadow-inner border border-white/5">
-                          <User size={20} />
+                        <div className="w-11 h-11 rounded-2xl bg-white/5 flex items-center justify-center group-hover:bg-gold-accent/10 transition-all font-black text-gold-accent shadow-inner border border-white/5">
+                          <User size={18} />
                         </div>
                         <div className="text-right">
-                          <h3 className="font-extrabold text-white text-base tracking-tight mb-1 group-hover:text-gold-accent transition-colors">
+                          <h3 className="font-extrabold text-white text-sm sm:text-base tracking-tight mb-1 group-hover:text-gold-accent transition-colors">
                             {reciter.name}
                           </h3>
                           <div className="flex items-center gap-2">
                             {firstMoshaf && (
-                              <span className="text-[10px] text-white/50 bg-emerald-500/10 text-emerald-400 px-2.5 py-0.5 rounded-full font-bold">
+                              <span className="text-[9px] text-white/50 bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-black">
                                 {firstMoshaf.name.replace("المصحف المرتل", "مرتل")}
                               </span>
                             )}
                           </div>
                         </div>
                       </div>
-                      <ChevronLeft size={16} className="text-white/20 group-hover:text-gold-accent transition-all rotate-180" />
+                      <div className="flex items-center gap-2 relative z-20">
+                        <button
+                          onClick={(e) => toggleFavoriteReciter(reciter.id, e)}
+                          className="p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-rose-500/10 hover:border-rose-500/20 text-white/30 hover:text-rose-400 hover:scale-110 active:scale-95 transition-all"
+                          title={isFav ? "إزالة من المفضلة" : "إضافة للمفضلة"}
+                        >
+                          <Heart size={16} className={cn(isFav ? "fill-rose-500 text-rose-500" : "")} />
+                        </button>
+                        <ChevronLeft size={16} className="text-white/20 group-hover:text-gold-accent transition-all rotate-180" />
+                      </div>
                     </motion.div>
                   );
                 })}

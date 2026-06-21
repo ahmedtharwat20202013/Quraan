@@ -179,89 +179,8 @@ export default function Home({ state, onNavigate, onSurahClick }: HomeProps) {
         </div>
       </div>
 
-      {/* Listening Card Shortcut */}
-      <motion.div 
-        whileTap={{ scale: 0.98 }}
-        onClick={() => onNavigate('listen')}
-        className="bg-white/5 border border-white/10 hover:border-gold-accent/30 rounded-3xl p-5 flex items-center justify-between cursor-pointer group transition-all relative overflow-hidden shadow-lg"
-      >
-        <div className="flex items-center gap-4 text-right">
-          <div className="w-10 h-10 rounded-2xl bg-gold-accent/10 flex items-center justify-center text-gold-accent shrink-0 group-hover:bg-gold-accent group-hover:text-islamic-dark transition-all">
-            <Volume2 size={20} />
-          </div>
-          <div>
-            <h3 className="font-bold text-sm text-white group-hover:text-gold-accent transition-colors">مكتبة التلاوات العطرة</h3>
-            <p className="text-[10px] text-white/40 mt-0.5 max-w-[240px]">أكثر من ١٠٠ قارئ بروايات حفص وورش والعديد من الشيوخ.</p>
-          </div>
-        </div>
-        <ChevronRight size={16} className="text-white/20 group-hover:text-gold-accent transition-colors rotate-180" />
-      </motion.div>
 
-      {/* Quick Features 2x2 Grid */}
-      <div className="space-y-3 pb-6">
-        <h3 className="text-xs font-black text-white/40 uppercase tracking-widest">خدمات سريعة</h3>
-        <div className="grid grid-cols-2 gap-3">
-          {/* Stories */}
-          <motion.button 
-            whileTap={{ scale: 0.97 }}
-            onClick={() => onNavigate('stories')}
-            className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-gold-accent/30 flex items-center gap-3 text-right cursor-pointer group transition-all"
-          >
-            <div className="w-10 h-10 rounded-xl bg-gold-accent/15 flex items-center justify-center text-gold-accent group-hover:bg-gold-accent group-hover:text-islamic-dark transition-all shrink-0">
-              <BookOpen size={18} />
-            </div>
-            <div>
-              <h4 className="font-bold text-xs text-white group-hover:text-gold-accent">قصص الأنبياء</h4>
-              <p className="text-[8px] text-white/30">قصص من الوعي والتعليم</p>
-            </div>
-          </motion.button>
 
-          {/* Duas */}
-          <motion.button 
-            whileTap={{ scale: 0.97 }}
-            onClick={() => onNavigate('duas')}
-            className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-gold-accent/30 flex items-center gap-3 text-right cursor-pointer group transition-all"
-          >
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center text-emerald-400 group-hover:bg-emerald-500 group-hover:text-white transition-all shrink-0">
-              <HandHeart size={18} />
-            </div>
-            <div>
-              <h4 className="font-bold text-xs text-white group-hover:text-emerald-400">حصن المسلم والأذكار</h4>
-              <p className="text-[8px] text-white/30">أدعية يومية وأذكار</p>
-            </div>
-          </motion.button>
-
-          {/* Tasbeeh */}
-          <motion.button 
-            whileTap={{ scale: 0.97 }}
-            onClick={() => onNavigate('tasbeeh')}
-            className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-gold-accent/30 flex items-center gap-3 text-right cursor-pointer group transition-all"
-          >
-            <div className="w-10 h-10 rounded-xl bg-violet-500/15 flex items-center justify-center text-violet-400 group-hover:bg-violet-500 group-hover:text-white transition-all shrink-0">
-              <CircleDot size={18} />
-            </div>
-            <div>
-              <h4 className="font-bold text-xs text-white group-hover:text-violet-400">المُسبّحة الذكية</h4>
-              <p className="text-[8px] text-white/30">تسبيح مَرن وهزاز</p>
-            </div>
-          </motion.button>
-
-          {/* Quiz */}
-          <motion.button 
-            whileTap={{ scale: 0.97 }}
-            onClick={() => onNavigate('quiz')}
-            className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-gold-accent/30 flex items-center gap-3 text-right cursor-pointer group transition-all"
-          >
-            <div className="w-10 h-10 rounded-xl bg-rose-500/15 flex items-center justify-center text-rose-400 group-hover:bg-rose-500 group-hover:text-white transition-all shrink-0">
-              <Trophy size={18} />
-            </div>
-            <div>
-              <h4 className="font-bold text-xs text-white group-hover:text-rose-400">مسابقة الأنبياء</h4>
-              <p className="text-[8px] text-white/30">مسابقات دينية ٢٠٠سؤال</p>
-            </div>
-          </motion.button>
-        </div>
-      </div>
     </div>
   );
 }
