@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Sun, 
@@ -466,6 +466,23 @@ const ADHKAR_DATA: AdhkarCategory[] = [
 
 export default function DuasSection() {
   const [selectedCategory, setSelectedCategory] = useState<AdhkarCategory | null>(null);
+  
+  // Scroll to top on list/view transition
+  useEffect(() => {
+    const doScroll = () => {
+      const mainEl = document.querySelector('main');
+      if (mainEl) {
+        mainEl.scrollTop = 0;
+      }
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'instant' });
+      document.body.scrollTo({ top: 0, behavior: 'instant' });
+    };
+
+    doScroll();
+    const timer = setTimeout(doScroll, 80);
+    return () => clearTimeout(timer);
+  }, [selectedCategory]);
   
   // Text size scaling state for outstanding readability
   const [textScale, setTextScale] = useState<'lg' | 'xl' | '2xl' | '3xl' | '4xl'>(() => {

@@ -65,14 +65,29 @@ export default function App() {
 
   const mainRef = useRef<HTMLElement>(null);
 
-  // Scroll to top on screen change
+  // Scroll to top on screen change with high resilience
   useEffect(() => {
-    if (mainRef.current) {
-      mainRef.current.scrollTop = 0;
-    }
-    window.scrollTo({ top: 0, behavior: 'instant' });
-    document.documentElement.scrollTo({ top: 0, behavior: 'instant' });
-    document.body.scrollTo({ top: 0, behavior: 'instant' });
+    const doScroll = () => {
+      if (mainRef.current) {
+        mainRef.current.scrollTop = 0;
+      }
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'instant' });
+      document.body.scrollTo({ top: 0, behavior: 'instant' });
+    };
+
+    doScroll();
+    
+    // Staggered timeouts to ensure it scrolls to top even if rendering is delayed
+    const timer1 = setTimeout(doScroll, 10);
+    const timer2 = setTimeout(doScroll, 100);
+    const frameId = requestAnimationFrame(doScroll);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      cancelAnimationFrame(frameId);
+    };
   }, [currentScreen]);
 
   const handleSurahClick = useCallback((surah: Surah) => {

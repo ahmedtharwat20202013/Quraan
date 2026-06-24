@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Play, Pause, Square, Disc, Gauge } from 'lucide-react';
+import { Play, Pause, Square, Disc } from 'lucide-react';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
 import { cn } from '../lib/utils';
 
@@ -76,20 +76,6 @@ export default function GlobalMiniPlayer() {
 
           {/* Controls */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Speed selection */}
-            <button 
-              onClick={() => {
-                const velocities = [1.0, 1.25, 1.5, 0.75];
-                const idx = velocities.indexOf(audioPlayer.playbackRate);
-                const nextIdx = (idx + 1) % velocities.length;
-                audioPlayer.setSpeed(velocities[nextIdx]);
-              }}
-              className="px-2 py-1 bg-white/5 text-[8px] font-black rounded-lg text-gold-accent/90 border border-white/5 hover:bg-white/10"
-              title="سرعة التشغيل"
-            >
-              {audioPlayer.playbackRate}x
-            </button>
-
             {/* Play/Pause */}
             <button
               onClick={() => audioPlayer.togglePlay()}
@@ -112,6 +98,13 @@ export default function GlobalMiniPlayer() {
             </button>
           </div>
         </div>
+
+        {/* Error alert bar */}
+        {audioPlayer.error && (
+          <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[9px] font-bold p-2 rounded-xl text-center leading-relaxed">
+            {audioPlayer.error}
+          </div>
+        )}
       </motion.div>
     </div>
   );

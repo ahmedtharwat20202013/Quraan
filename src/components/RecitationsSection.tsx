@@ -13,7 +13,6 @@ import {
   Sparkles, 
   AlertTriangle, 
   RefreshCw,
-  Gauge,
   Disc,
   ListRestart,
   Heart,
@@ -34,6 +33,7 @@ export default function RecitationsSection() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
   
   // Selection states
   const [selectedReciter, setSelectedReciter] = useState<Reciter | null>(null);
@@ -58,6 +58,23 @@ export default function RecitationsSection() {
   const [reciterDownloadedSize, setReciterDownloadedSize] = useState<number>(0);
   const [batchDownloading, setBatchDownloading] = useState(false);
 
+  // Scroll to top on list/view transition
+  useEffect(() => {
+    const doScroll = () => {
+      const mainEl = document.querySelector('main');
+      if (mainEl) {
+        mainEl.scrollTop = 0;
+      }
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'instant' });
+      document.body.scrollTo({ top: 0, behavior: 'instant' });
+    };
+
+    doScroll();
+    const timer = setTimeout(doScroll, 80);
+    return () => clearTimeout(timer);
+  }, [selectedReciter, selectedMoshaf, filterTab]);
+
   useEffect(() => {
     const unsubscribe = OfflineAudioService.subscribe((state) => {
       setOfflineState(state);
@@ -68,7 +85,10 @@ export default function RecitationsSection() {
   // Helper to construct Surah Audio URL
   const getSurahUrl = useCallback((surahId: number) => {
     if (!selectedMoshaf) return '';
-    const serverUrl = selectedMoshaf.server;
+    let serverUrl = selectedMoshaf.server;
+    if (serverUrl.startsWith('http://')) {
+      serverUrl = serverUrl.replace('http://', 'https://');
+    }
     const baseUrl = serverUrl.endsWith('/') ? serverUrl : `${serverUrl}/`;
     const paddedNum = String(surahId).padStart(3, '0');
     return `${baseUrl}${paddedNum}.mp3`;
@@ -174,6 +194,24 @@ export default function RecitationsSection() {
     
     return { total, downloaded, percentage };
   }, [selectedReciter, selectedMoshaf, suwar, offlineState.downloadedUrls, getSurahUrl]);
+
+  // Calculate remaining size in MB
+  const remainingSizeInMB = useMemo(() => {
+    if (!selectedReciter || !selectedMoshaf) return 0;
+    
+    const availableSuwar = suwar.filter(s => isSurahAvailable(s.id));
+    const toDownload = availableSuwar.filter(s => {
+      const url = getSurahUrl(s.id);
+      return url && !offlineState.downloadedUrls.has(url);
+    });
+
+    const sum = toDownload.reduce((acc, s) => {
+      const pages = Math.max(1, s.end_page - s.start_page + 1);
+      return acc + (pages * 1.1);
+    }, 0);
+    
+    return sum;
+  }, [selectedReciter, selectedMoshaf, suwar, offlineState.downloadedUrls, getSurahUrl, isSurahAvailable]);
 
   const toggleFavoriteReciter = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -322,7 +360,7 @@ export default function RecitationsSection() {
                   : "text-white/40 hover:text-white"
               )}
             >
-              كل القراء ({reciters.length})
+              كل القراء
             </button>
             <button
               onClick={() => setFilterTab('favorites')}
@@ -383,7 +421,13 @@ export default function RecitationsSection() {
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <AnimatePresence>
                 {filteredReciters.map((reciter) => {
-                  const firstMoshaf = reciter.moshaf && reciter.moshaf[0];
+                  const preferredMoshaf = reciter.moshaf && (
+                    reciter.moshaf.find(m => m.name.includes("حفص") || m.name.includes("Hafs") || m.name.includes("حفص عن عاصم")) || 
+                    reciter.moshaf[0]
+                  );
+                  const surahCount = preferredMoshaf?.surah_list 
+                    ? preferredMoshaf.surah_list.split(',').filter(Boolean).length 
+                    : 0;
                   const isFav = favoriteReciterIds.includes(String(reciter.id));
                   return (
                     <motion.div
@@ -403,10 +447,10 @@ export default function RecitationsSection() {
                           <h3 className="font-extrabold text-white text-sm sm:text-base tracking-tight mb-1 group-hover:text-gold-accent transition-colors">
                             {reciter.name}
                           </h3>
-                          <div className="flex items-center gap-2">
-                            {firstMoshaf && (
+                          <div className="flex items-center gap-2 flex-wrap mt-1">
+                            {preferredMoshaf && (
                               <span className="text-[9px] text-white/50 bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full font-black">
-                                {firstMoshaf.name.replace("المصحف المرتل", "مرتل")}
+                                {preferredMoshaf.name.replace("المصحف المرتل", "مرتل")}
                               </span>
                             )}
                           </div>
@@ -500,7 +544,7 @@ export default function RecitationsSection() {
                 ) : (
                   <>
                     <Download size={14} />
-                    <span>تنزيل جميع السور المتاحة ({reciterStats.total - reciterStats.downloaded})</span>
+                    <span>تنزيل جميع السور المتاحة ({reciterStats.total - reciterStats.downloaded}) • حوالي {Math.round(remainingSizeInMB)} ميجا</span>
                   </>
                 )}
               </button>
@@ -555,11 +599,18 @@ export default function RecitationsSection() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   className={cn(
-                    "glass-card p-4 flex items-center justify-between transition-all relative overflow-hidden",
-                    available ? "cursor-pointer group hover:bg-white/10" : "opacity-35 cursor-not-allowed select-none",
+                    "glass-card p-4 flex items-center justify-between transition-all relative overflow-hidden cursor-pointer",
+                    available ? "group hover:bg-white/10" : "opacity-35",
                     isCurrent ? "border-gold-accent/40 bg-gold-accent/5" : ""
                   )}
-                  onClick={() => available && handlePlaySurah(surah)}
+                  onClick={() => {
+                    if (available) {
+                      handlePlaySurah(surah);
+                    } else {
+                      setToastMessage("هذه السورة غير متوفرة لهذا القارئ، اختر قارئًا آخر.");
+                      setTimeout(() => setToastMessage(null), 3000);
+                    }
+                  }}
                 >
                   <div className="flex items-center gap-4">
                     {/* Surah ID number layout */}
@@ -691,20 +742,6 @@ export default function RecitationsSection() {
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {/* Playback speed selector */}
-                  <div className="flex items-center gap-1 bg-white/5 px-2.5 py-1.5 rounded-full select-none cursor-pointer"
-                       title="سرعة التلاوة"
-                       onClick={() => {
-                         const velocities = [1.0, 1.25, 1.5, 0.75];
-                         const idx = velocities.indexOf(audioPlayer.playbackRate);
-                         const nextIdx = (idx + 1) % velocities.length;
-                         audioPlayer.setSpeed(velocities[nextIdx]);
-                       }}
-                  >
-                    <Gauge size={10} className="text-gold-accent" />
-                    <span className="text-[9px] font-bold text-white/80">{audioPlayer.playbackRate}x</span>
-                  </div>
-
                   <button 
                     onClick={() => audioPlayer.stop()}
                     className="p-2 bg-white/5 hover:bg-white/10 rounded-full text-white/40 hover:text-rose-500 transition-all outline-none"
@@ -714,6 +751,13 @@ export default function RecitationsSection() {
                   </button>
                 </div>
               </div>
+
+              {/* Error Alert Bar */}
+              {audioPlayer.error && (
+                <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 text-[10px] font-bold p-2.5 rounded-xl text-center mb-3 leading-relaxed">
+                  {audioPlayer.error}
+                </div>
+              )}
 
               {/* Progress Slider Bar */}
               <div className="space-y-1">
@@ -751,6 +795,23 @@ export default function RecitationsSection() {
                 </button>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating toast notification for unavailable surah */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-28 left-4 right-4 max-w-sm mx-auto z-[100] bg-emerald-950/95 border border-gold-accent/40 backdrop-blur-md px-6 py-4 rounded-2xl flex items-center gap-3 shadow-[0_10px_30px_rgba(0,0,0,0.5)] text-center justify-center"
+          >
+            <div className="w-6 h-6 rounded-full bg-gold-accent/10 flex items-center justify-center text-gold-accent shrink-0">
+              <AlertTriangle size={14} />
+            </div>
+            <p className="text-xs font-bold text-white tracking-wide">{toastMessage}</p>
           </motion.div>
         )}
       </AnimatePresence>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, BookOpen, Star, Hash, Copy, Check, Share2 } from 'lucide-react';
 import { STORIES } from '../constants';
@@ -9,6 +9,23 @@ export default function StoriesSection() {
   const [selectedStory, setSelectedStory] = useState<Story | null>(null);
   const [viewMode, setViewMode] = useState<'all' | 'prophets'>('all');
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+
+  // Scroll to top on list/view transition
+  useEffect(() => {
+    const doScroll = () => {
+      const mainEl = document.querySelector('main');
+      if (mainEl) {
+        mainEl.scrollTop = 0;
+      }
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'instant' });
+      document.body.scrollTo({ top: 0, behavior: 'instant' });
+    };
+
+    doScroll();
+    const timer = setTimeout(doScroll, 80);
+    return () => clearTimeout(timer);
+  }, [selectedStory, viewMode, activeCategory]);
   const [copied, setCopied] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 

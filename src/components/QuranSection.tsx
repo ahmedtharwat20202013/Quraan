@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { Search, ChevronLeft } from 'lucide-react';
 import { SURAHS } from '../constants';
@@ -11,6 +11,23 @@ interface QuranSectionProps {
 
 export default function QuranSection({ onSurahClick }: QuranSectionProps) {
   const [search, setSearch] = useState("");
+
+  // Scroll to top on list/view transition
+  useEffect(() => {
+    const doScroll = () => {
+      const mainEl = document.querySelector('main');
+      if (mainEl) {
+        mainEl.scrollTop = 0;
+      }
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'instant' });
+      document.body.scrollTo({ top: 0, behavior: 'instant' });
+    };
+
+    doScroll();
+    const timer = setTimeout(doScroll, 80);
+    return () => clearTimeout(timer);
+  }, [search]);
   
   const filteredSurahs = SURAHS.filter(s => 
     s.name.includes(search) || 

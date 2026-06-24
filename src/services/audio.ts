@@ -12,6 +12,7 @@ export interface AudioPlayerState {
   currentMoshafName: string | null;
   audioUrl: string | null;
   playbackRate: number;
+  error: string | null;
 }
 
 type AudioListener = (state: AudioPlayerState) => void;
@@ -37,6 +38,7 @@ class AudioPlayerServiceImpl {
     currentMoshafName: null,
     audioUrl: null,
     playbackRate: 1.0,
+    error: null,
   };
 
   constructor() {
@@ -97,6 +99,15 @@ class AudioPlayerServiceImpl {
 
     this.audio.addEventListener('error', (e) => {
       console.error('Audio element error:', e);
+      let errorMsg = 'تعذر تشغيل هذه السورة من المصدر.';
+      if (this.audio && this.audio.error) {
+        if (this.audio.error.code === 4) {
+          errorMsg = 'فشل تشغيل الملف أو الرابط غير مدعوم أو غير متاح حالياً لدى القارئ.';
+        } else {
+          errorMsg = `فشل تشغيل الصوت (رمز الخطأ: ${this.audio.error.code})`;
+        }
+      }
+      this.state.error = errorMsg;
       this.state.isPlaying = false;
       this.state.isBuffering = false;
       this.notifyListeners();
@@ -177,8 +188,12 @@ class AudioPlayerServiceImpl {
     }
 
     // ServerUrl could be like "https://server10.mp3quran.net/bkr/"
-    // Ensure it ends with /
-    const baseUrl = serverUrl.endsWith('/') ? serverUrl : `${serverUrl}/`;
+    // Ensure it ends with / and is secure (HTTPS)
+    let secureServerUrl = serverUrl;
+    if (secureServerUrl.startsWith('http://')) {
+      secureServerUrl = secureServerUrl.replace('http://', 'https://');
+    }
+    const baseUrl = secureServerUrl.endsWith('/') ? secureServerUrl : `${secureServerUrl}/`;
     
     // Surah number must be heavily zero-padded to 3 characters, e.g., "001" or "015" or "114"
     const paddedNum = String(surahNum).padStart(3, '0');
@@ -195,12 +210,39 @@ class AudioPlayerServiceImpl {
       currentReciterName: reciterName,
       currentMoshafName: moshafName,
       audioUrl: finalUrl,
+      error: null,
     };
 
     this.notifyListeners();
 
+    // Check if cached synchronously using in-memory Set
+    const isCached = OfflineAudioService.isDownloaded(finalUrl);
+
+    if (!isCached) {
+      // PLAY IMMEDIATELY & SYNCHRONOUSLY to preserve the user gesture (especially for iOS Safari)
+      try {
+        this.audio.src = finalUrl;
+        this.audio.playbackRate = this.state.playbackRate;
+        this.audio.load();
+        const p = this.audio.play();
+        if (p !== undefined) {
+          this.playPromise = p;
+          await p;
+        }
+      } catch (err: any) {
+        if (err && err.name !== 'AbortError') {
+          console.error('Playing remote audio failed:', err);
+          this.state.error = 'فشل تشغيل السورة من خادم الصوت المباشر. يرجى التحقق من اتصالك بالإنترنت.';
+        }
+        this.state.isBuffering = false;
+        this.state.isPlaying = false;
+        this.notifyListeners();
+      }
+      return;
+    }
+
+    // If cached, retrieve from IndexedDB asynchronously
     try {
-      // Get play url from offline cache service (it returns a blob URL if cached, or finalUrl if not)
       const playUrl = await OfflineAudioService.getAudioUrl(finalUrl);
       if (playUrl.startsWith('blob:')) {
         this.activeBlobUrl = playUrl;
@@ -216,7 +258,8 @@ class AudioPlayerServiceImpl {
       }
     } catch (err: any) {
       if (err && err.name !== 'AbortError') {
-        console.error('Playing audio failed:', err);
+        console.error('Playing cached audio failed:', err);
+        this.state.error = 'فشل تشغيل السورة المحملة. قد يكون الملف تالفاً، جرب حذفه وإعادة تحميله.';
       }
       this.state.isBuffering = false;
       this.state.isPlaying = false;

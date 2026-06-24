@@ -56,6 +56,68 @@ export default function SurahReader({ surah, onBack, onProgressUpdate, fontSize,
   const [isZoomedIn, setIsZoomedIn] = useState(false);
   const [resolvedPdfUrl, setResolvedPdfUrl] = useState<string>("/quran.pdf");
   const [isCheckingPdf, setIsCheckingPdf] = useState(true);
+
+  // New beautiful text reader states
+  const [readerMode, setReaderMode] = useState<'pdf' | 'text'>('pdf');
+  const [textFontSize, setTextFontSize] = useState(fontSize || 24);
+  const [surahTextData, setSurahTextData] = useState<any>(null);
+  const [loadingText, setLoadingText] = useState(false);
+  const [textError, setTextError] = useState<string | null>(null);
+  const [textScrollMode, setTextScrollMode] = useState<'continuous' | 'verse'>('continuous');
+
+  const handleTextZoomIn = () => {
+    setTextFontSize(prev => Math.min(prev + 2, 40));
+  };
+  const handleTextZoomOut = () => {
+    setTextFontSize(prev => Math.max(prev - 2, 14));
+  };
+
+  const getCleanVerseText = (verse: any, index: number) => {
+    let t = verse.text;
+    if (surah.number !== 1 && surah.number !== 9 && index === 0) {
+      const bismillah = "بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ";
+      if (t.startsWith(bismillah)) {
+        t = t.substring(bismillah.length).trim();
+      }
+    }
+    return t;
+  };
+
+  useEffect(() => {
+    if (pdfError) {
+      setReaderMode('text');
+    }
+  }, [pdfError]);
+
+  useEffect(() => {
+    if (readerMode === 'text') {
+      let active = true;
+      const fetchText = async () => {
+        setLoadingText(true);
+        setTextError(null);
+        try {
+          const res = await fetch(`https://api.alquran.cloud/v1/surah/${surah.number}`);
+          if (!res.ok) {
+            throw new Error('فشل جلب نص السورة الكريمة. يرجى التحقق من اتصالك بالإنترنت.');
+          }
+          const json = await res.json();
+          if (active) {
+            setSurahTextData(json.data);
+            setLoadingText(false);
+          }
+        } catch (err: any) {
+          if (active) {
+            setTextError(err.message || 'تعذر تحميل نص السورة');
+            setLoadingText(false);
+          }
+        }
+      };
+      fetchText();
+      return () => {
+        active = false;
+      };
+    }
+  }, [readerMode, surah.number]);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const transformRef = useRef<any>(null);
@@ -154,6 +216,7 @@ export default function SurahReader({ surah, onBack, onProgressUpdate, fontSize,
       setCurrentPage(surah.startPage);
     }
     setPdfError(null);
+    setReaderMode('pdf'); // Try PDF first when surah changes
     if (transformRef.current) {
       transformRef.current.resetTransform();
     }
@@ -328,6 +391,17 @@ export default function SurahReader({ surah, onBack, onProgressUpdate, fontSize,
             
             <div className="flex items-center gap-2">
               <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  setReaderMode(prev => prev === 'pdf' ? 'text' : 'pdf'); 
+                  resetControlsTimeout(); 
+                }} 
+                className="px-3.5 h-10 rounded-2xl flex items-center gap-1.5 bg-white/10 backdrop-blur-xl border border-white/5 text-white hover:text-gold-accent transition-all active:scale-95 text-xs font-bold"
+                title="التحويل بين التلاوة النصية والمصحف المصور"
+              >
+                <span>{readerMode === 'pdf' ? 'نصي 📝' : 'مصور 📖'}</span>
+              </button>
+              <button 
                 onClick={(e) => { e.stopPropagation(); setIsNightMode(!isNightMode); resetControlsTimeout(); }} 
                 className="w-10 h-10 rounded-full flex items-center justify-center bg-white/10 backdrop-blur-xl border border-white/5 text-white transition-all active:scale-95 shadow-md"
                 title="تغيير الإضاءة والمظهر"
@@ -365,201 +439,350 @@ export default function SurahReader({ surah, onBack, onProgressUpdate, fontSize,
         )}
       </AnimatePresence>
 
-      {/* Mushaf Page Viewport Area */}
-      <main 
-        className="flex-1 flex flex-col items-center justify-center relative touch-none overflow-hidden w-full h-full"
-        onClick={toggleControls}
-        onTouchStart={handleTouchStart}
-        onTouchEnd={handleTouchEnd}
-      >
-        <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
-          {/* Side Gradients for page depth immersion */}
-          <div className="absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-black/20 to-transparent pointer-events-none z-10" />
-          <div className="absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-black/20 to-transparent pointer-events-none z-10" />
+      {/* Mushaf Page Viewport Area / Text Viewport Area */}
+      {readerMode === 'pdf' ? (
+        <main 
+          className="flex-1 flex flex-col items-center justify-center relative touch-none overflow-hidden w-full h-full"
+          onClick={toggleControls}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
+          <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+            {/* Side Gradients for page depth immersion */}
+            <div className="absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-black/20 to-transparent pointer-events-none z-10" />
+            <div className="absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-black/20 to-transparent pointer-events-none z-10" />
 
-          {/* Large Tap targets for next/prev pages (very comfy for phone thumbs) */}
-          {!isLocked && !isZoomedIn && (
-            <>
-              {/* Right target - Swipe forward (RTL next page) */}
-              <div 
-                onClick={(e) => { e.stopPropagation(); goToNextPage(); resetControlsTimeout(); }}
-                className="absolute right-0 top-0 bottom-0 w-[15%] z-30 cursor-pointer pointer-events-auto"
-                title="الصفحة التالية"
-              />
-              {/* Left target - Swipe backward (RTL previous page) */}
-              <div 
-                onClick={(e) => { e.stopPropagation(); goToPrevPage(); resetControlsTimeout(); }}
-                className="absolute left-0 top-0 bottom-0 w-[15%] z-30 cursor-pointer pointer-events-auto"
-                title="الصفحة السابقة"
-              />
-            </>
-          )}
+            {/* Large Tap targets for next/prev pages (very comfy for phone thumbs) */}
+            {!isLocked && !isZoomedIn && (
+              <>
+                {/* Right target - Swipe forward (RTL next page) */}
+                <div 
+                  onClick={(e) => { e.stopPropagation(); goToNextPage(); resetControlsTimeout(); }}
+                  className="absolute right-0 top-0 bottom-0 w-[15%] z-30 cursor-pointer pointer-events-auto"
+                  title="الصفحة التالية"
+                />
+                {/* Left target - Swipe backward (RTL previous page) */}
+                <div 
+                  onClick={(e) => { e.stopPropagation(); goToPrevPage(); resetControlsTimeout(); }}
+                  className="absolute left-0 top-0 bottom-0 w-[15%] z-30 cursor-pointer pointer-events-auto"
+                  title="الصفحة السابقة"
+                />
+              </>
+            )}
 
-          {/* Desktop/Tablet visual arrow overlays */}
-          {!isLocked && !isZoomedIn && (
-            <div className={cn(
-              "absolute inset-x-4 top-1/2 -translate-y-1/2 z-40 flex justify-between pointer-events-none transition-opacity duration-300 hidden md:flex",
-              showControls ? "opacity-100" : "opacity-0"
-            )}>
-              <button 
-                onClick={(e) => { e.stopPropagation(); goToPrevPage(); resetControlsTimeout(); }}
-                className={cn(
-                  "p-3 bg-black/40 text-white rounded-full backdrop-blur-md pointer-events-auto transition-all transform hover:scale-110 border border-white/5",
-                  currentPage === 1 ? "opacity-20 cursor-not-allowed" : "hover:bg-gold-accent hover:text-black"
-                )}
-                disabled={currentPage === 1}
-              >
-                <ChevronRight size={32} />
-              </button>
-              <button 
-                onClick={(e) => { e.stopPropagation(); goToNextPage(); resetControlsTimeout(); }}
-                className={cn(
-                  "p-3 bg-black/40 text-white rounded-full backdrop-blur-md pointer-events-auto transition-all transform hover:scale-110 border border-white/5",
-                  currentPage === numPages ? "opacity-20 cursor-not-allowed" : "hover:bg-gold-accent hover:text-black"
-                )}
-                disabled={currentPage === (numPages || 604)}
-              >
-                <ChevronLeft size={32} />
-              </button>
-            </div>
-          )}
+            {/* Desktop/Tablet visual arrow overlays */}
+            {!isLocked && !isZoomedIn && (
+              <div className={cn(
+                "absolute inset-x-4 top-1/2 -translate-y-1/2 z-40 flex justify-between pointer-events-none transition-opacity duration-300 hidden md:flex",
+                showControls ? "opacity-100" : "opacity-0"
+              )}>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); goToPrevPage(); resetControlsTimeout(); }}
+                  className={cn(
+                    "p-3 bg-black/40 text-white rounded-full backdrop-blur-md pointer-events-auto transition-all transform hover:scale-110 border border-white/5",
+                    currentPage === 1 ? "opacity-20 cursor-not-allowed" : "hover:bg-gold-accent hover:text-black"
+                  )}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronRight size={32} />
+                </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); goToNextPage(); resetControlsTimeout(); }}
+                  className={cn(
+                    "p-3 bg-black/40 text-white rounded-full backdrop-blur-md pointer-events-auto transition-all transform hover:scale-110 border border-white/5",
+                    currentPage === numPages ? "opacity-20 cursor-not-allowed" : "hover:bg-gold-accent hover:text-black"
+                  )}
+                  disabled={currentPage === (numPages || 604)}
+                >
+                  <ChevronLeft size={32} />
+                </button>
+              </div>
+            )}
 
-          {/* Zoomable Track configured for PDF bounds and centering */}
-          <div className="relative w-full h-full flex items-center justify-center select-none overflow-hidden">
-            <TransformWrapper
-              ref={transformRef}
-              initialScale={1}
-              minScale={1}
-              maxScale={4}
-              centerOnInit={true}
-              wheel={{ step: 0.1 }}
-              zoomAnimation={{ animationType: "linear" }}
-              doubleClick={{ step: 1.5, mode: "toggle" }}
-              onTransform={onZoomChange}
-              panning={{ disabled: isLocked }}
-              pinch={{ disabled: isLocked }}
-            >
-              <TransformComponent
-                wrapperClass="!w-full !h-full flex items-center justify-center touch-none select-none"
-                contentClass="!w-full !h-full flex items-center justify-center select-none"
+            {/* Zoomable Track configured for PDF bounds and centering */}
+            <div className="relative w-full h-full flex items-center justify-center select-none overflow-hidden">
+              <TransformWrapper
+                ref={transformRef}
+                initialScale={1}
+                minScale={1}
+                maxScale={4}
+                centerOnInit={true}
+                wheel={{ step: 0.1 }}
+                zoomAnimation={{ animationType: "linear" }}
+                doubleClick={{ step: 1.5, mode: "toggle" }}
+                onTransform={onZoomChange}
+                panning={{ disabled: isLocked }}
+                pinch={{ disabled: isLocked }}
               >
-                {isCheckingPdf ? (
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="w-14 h-14 border-4 border-gold-accent border-t-transparent rounded-full animate-spin shadow-[0_0_20px_rgba(212,175,55,0.3)]" />
-                    <div className="text-gold-accent font-black text-xs uppercase tracking-[0.3em] animate-pulse">جاري التهيئة والتحقق...</div>
-                  </div>
-                ) : pdfError ? (
-                  <div className="p-10 text-center space-y-6 max-w-sm bg-[#00140a] rounded-[2rem] border border-gold-accent/20 z-10 shadow-2xl flex flex-col items-center">
-                    <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center">
-                      <FileUp size={30} className="text-rose-500 animate-pulse" />
+                <TransformComponent
+                  wrapperClass="!w-full !h-full flex items-center justify-center touch-none select-none"
+                  contentClass="!w-full !h-full flex items-center justify-center select-none"
+                >
+                  {isCheckingPdf ? (
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-14 h-14 border-4 border-gold-accent border-t-transparent rounded-full animate-spin shadow-[0_0_20px_rgba(212,175,55,0.3)]" />
+                      <div className="text-gold-accent font-black text-xs uppercase tracking-[0.3em] animate-pulse">جاري التهيئة والتحقق...</div>
                     </div>
-                    <div className="space-y-2">
-                      <p className="font-bold text-rose-500 text-base">تعذر تحميل صفحة المصحف</p>
-                      <p className="text-xs text-white/50 leading-relaxed px-2">
-                        ملف السورة الفردي ({activePdf.replace("/pdfs/", "")}) غير متوفر حالياً.
-                      </p>
-                    </div>
-                    {/* Native PDF File Upload Box */}
-                    <div className="mt-2 w-full">
-                      <label className="inline-flex w-full items-center justify-center gap-2 px-5 py-3.5 bg-gold-accent text-emerald-950 font-black text-xs rounded-full cursor-pointer hover:bg-gold-bright active:scale-95 transition-all shadow-[0_4px_15px_rgba(212,175,55,0.3)] select-none">
-                        <FileUp size={16} />
-                        <span>تحميل وتصفح ملف PDF يدوياً</span>
-                        <input 
-                          type="file" 
-                          accept="application/pdf" 
-                          className="hidden" 
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              if (localPdfUrl) {
-                                URL.revokeObjectURL(localPdfUrl);
+                  ) : pdfError ? (
+                    <div className="p-10 text-center space-y-6 max-w-sm bg-[#00140a] rounded-[2rem] border border-gold-accent/20 z-10 shadow-2xl flex flex-col items-center">
+                      <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center">
+                        <FileUp size={30} className="text-rose-500 animate-pulse" />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="font-bold text-rose-500 text-base">تعذر تحميل صفحة المصحف</p>
+                        <p className="text-xs text-white/50 leading-relaxed px-2">
+                          ملف السورة الفردي ({activePdf.replace("/pdfs/", "")}) غير متوفر حالياً.
+                        </p>
+                      </div>
+                      {/* Native PDF File Upload Box */}
+                      <div className="mt-2 w-full">
+                        <label className="inline-flex w-full items-center justify-center gap-2 px-5 py-3.5 bg-gold-accent text-emerald-950 font-black text-xs rounded-full cursor-pointer hover:bg-gold-bright active:scale-95 transition-all shadow-[0_4px_15px_rgba(212,175,55,0.3)] select-none">
+                          <FileUp size={16} />
+                          <span>تحميل وتصفح ملف PDF يدوياً</span>
+                          <input 
+                            type="file" 
+                            accept="application/pdf" 
+                            className="hidden" 
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                               if (localPdfUrl) {
+                                  URL.revokeObjectURL(localPdfUrl);
+                                }
+                                setLocalPdfUrl(URL.createObjectURL(file));
+                                setPdfError(null);
                               }
-                              setLocalPdfUrl(URL.createObjectURL(file));
-                              setPdfError(null);
-                            }
-                          }} 
-                        />
-                      </label>
+                            }} 
+                          />
+                        </label>
+                      </div>
                     </div>
+                  ) : (
+                    <Document
+                      file={activePdf}
+                      options={PDF_OPTIONS}
+                      onLoadSuccess={onDocumentLoadSuccess}
+                      onLoadError={(error) => setPdfError(error.message)}
+                      loading={
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="w-14 h-14 border-4 border-gold-accent border-t-transparent rounded-full animate-spin shadow-[0_0_20px_rgba(212,175,55,0.3)]" />
+                          <div className="text-gold-accent font-black text-xs uppercase tracking-[0.3em] animate-pulse">جاري تحميل السورة...</div>
+                        </div>
+                      }
+                      className="max-w-full max-h-full flex flex-col items-center justify-center select-none relative w-full h-full"
+                    >
+                      <AnimatePresence custom={direction} initial={false}>
+                        <motion.div
+                          key={currentPage}
+                          custom={direction}
+                          variants={slideVariants}
+                          initial="enter"
+                          animate="center"
+                          exit="exit"
+                          style={{ filter: 'none', colorScheme: 'light' }}
+                          className={cn(
+                            "absolute shadow-[0_20px_60px_rgba(0,0,0,0.5)] overflow-hidden rounded-2xl border border-white/10 select-none",
+                            "bg-[#ffffff]" // Force pure white to ensure exact color fidelity and prevent transparency shift
+                          )}
+                        >
+                          <Page 
+                            pageNumber={currentPage} 
+                            renderTextLayer={false} 
+                            renderAnnotationLayer={false}
+                            devicePixelRatio={4} // Enforce 300+ DPI equivalents
+                            width={getPageDimensions().width}
+                            scale={getPageDimensions().scale}
+                            className="max-w-full object-contain mx-auto select-none pointer-events-none pdf-page-wrapper"
+                            loading={
+                              <div className="flex flex-col items-center justify-center p-24 gap-3">
+                                <div className="w-10 h-10 border-4 border-gold-accent border-t-transparent rounded-full animate-spin" />
+                                <span className="text-[10px] text-white/40 font-bold">جاري التهيئة...</span>
+                              </div>
+                            }
+                          />
+                        </motion.div>
+                      </AnimatePresence>
+
+                      {/* background Smart Cache Queue: Render neighboring pages invisible to force browser pre-caching */}
+                      <div style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', top: '-9999px' }}>
+                        {currentPage > 1 && (
+                          <Page 
+                            pageNumber={currentPage - 1} 
+                            renderTextLayer={false} 
+                            renderAnnotationLayer={false}
+                            devicePixelRatio={1}
+                            width={100}
+                            scale={1} 
+                            className="pdf-page-wrapper"
+                          />
+                        )}
+                        {numPages && currentPage < numPages && (
+                          <Page 
+                            pageNumber={currentPage + 1} 
+                            renderTextLayer={false} 
+                            renderAnnotationLayer={false}
+                            devicePixelRatio={1}
+                            width={100}
+                            scale={1} 
+                            className="pdf-page-wrapper"
+                          />
+                        )}
+                      </div>
+                    </Document>
+                  )}
+                </TransformComponent>
+              </TransformWrapper>
+            </div>
+          </div>
+        </main>
+      ) : (
+        <main 
+          className="flex-1 overflow-y-auto px-6 py-8 w-full relative select-text"
+          onClick={toggleControls}
+        >
+          <div className="max-w-xl mx-auto w-full pb-32">
+            {loadingText ? (
+              <div className="flex flex-col items-center justify-center py-32 gap-4">
+                <div className="w-14 h-14 border-4 border-gold-accent border-t-transparent rounded-full animate-spin shadow-[0_0_20px_rgba(212,175,55,0.3)]" />
+                <div className="text-gold-accent font-black text-xs uppercase tracking-[0.3em] animate-pulse">جاري جلب نص السورة الكريمة...</div>
+              </div>
+            ) : textError ? (
+              <div className="p-10 text-center space-y-6 max-w-sm mx-auto bg-[#00140a] rounded-[2rem] border border-gold-accent/20 shadow-2xl flex flex-col items-center mt-12">
+                <div className="w-16 h-16 bg-rose-500/10 rounded-full flex items-center justify-center animate-bounce">
+                  <RotateCcw size={30} className="text-rose-500" />
+                </div>
+                <div className="space-y-2">
+                  <p className="font-bold text-rose-500 text-base">عذراً، فشل تحميل النص</p>
+                  <p className="text-xs text-white/50 leading-relaxed px-2">
+                    {textError}
+                  </p>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Toggle and toggle back to force refetch
+                    setReaderMode('pdf');
+                    setTimeout(() => setReaderMode('text'), 100);
+                  }}
+                  className="px-5 py-2.5 bg-gold-accent text-emerald-950 font-black text-xs rounded-full cursor-pointer hover:bg-gold-bright transition-all"
+                >
+                  إعادة المحاولة
+                </button>
+              </div>
+            ) : surahTextData ? (
+              <div className="space-y-8">
+                {/* Scroll Mode Selector / Style Settings */}
+                <div className="flex justify-between items-center bg-white/5 border border-white/5 rounded-2xl p-3 no-toggle mb-6">
+                  <span className="text-[10px] font-black text-white/50 uppercase">نمط القراءة والخط</span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setTextScrollMode('continuous'); }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-[10px] font-black transition-all",
+                        textScrollMode === 'continuous' ? "bg-gold-accent text-emerald-950 animate-pulse" : "bg-white/5 text-white/60 hover:text-white"
+                      )}
+                    >
+                      مصحف متصل 📖
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setTextScrollMode('verse'); }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-xl text-[10px] font-black transition-all",
+                        textScrollMode === 'verse' ? "bg-gold-accent text-emerald-950" : "bg-white/5 text-white/60 hover:text-white"
+                      )}
+                    >
+                      آية تلو آية 📜
+                    </button>
+                  </div>
+                </div>
+
+                {/* Centered Bismillah Header (if applicable) */}
+                {surah.number !== 1 && surah.number !== 9 && (
+                  <div className="text-center py-6">
+                    <h2 className="arabic-text text-gold-bright text-3xl font-bold leading-normal select-none">
+                      بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ
+                    </h2>
+                    <div className="w-16 h-0.5 bg-gradient-to-r from-transparent via-gold-accent to-transparent mx-auto mt-4 opacity-50" />
+                  </div>
+                )}
+
+                {/* Actual Surah Content */}
+                {textScrollMode === 'continuous' ? (
+                  <div 
+                    className={cn(
+                      "leading-[2.8] text-center text-justify arabic-text px-4 pb-12 transition-colors select-text",
+                      isNightMode ? "text-neutral-100" : "text-emerald-950"
+                    )}
+                    style={{ fontSize: `${textFontSize}px`, wordSpacing: '2px' }}
+                  >
+                    {surahTextData.ayahs.map((ayah: any, idx: number) => {
+                      const cleanText = getCleanVerseText(ayah, idx);
+                      return (
+                        <span 
+                          key={ayah.number} 
+                          className="inline cursor-pointer hover:text-gold-bright transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (ayah.page) {
+                              setCurrentPage(ayah.page);
+                              onProgressUpdate(surah.number, ayah.page);
+                            }
+                          }}
+                          title={`الآية ${ayah.numberInSurah} (صفحة ${ayah.page})`}
+                        >
+                          {cleanText}
+                          <span className="text-gold-accent font-bold mx-1 text-xs whitespace-nowrap arabic-text-sans select-none inline-block scale-95 origin-center">
+                            {" "}﴿{ayah.numberInSurah}﴾{" "}
+                          </span>
+                        </span>
+                      );
+                    })}
                   </div>
                 ) : (
-                  <Document
-                    file={activePdf}
-                    options={PDF_OPTIONS}
-                    onLoadSuccess={onDocumentLoadSuccess}
-                    onLoadError={(error) => setPdfError(error.message)}
-                    loading={
-                      <div className="flex flex-col items-center gap-4">
-                        <div className="w-14 h-14 border-4 border-gold-accent border-t-transparent rounded-full animate-spin shadow-[0_0_20px_rgba(212,175,55,0.3)]" />
-                        <div className="text-gold-accent font-black text-xs uppercase tracking-[0.3em] animate-pulse">جاري تحميل السورة...</div>
-                      </div>
-                    }
-                    className="max-w-full max-h-full flex flex-col items-center justify-center select-none relative w-full h-full"
-                  >
-                    <AnimatePresence custom={direction} initial={false}>
-                      <motion.div
-                        key={currentPage}
-                        custom={direction}
-                        variants={slideVariants}
-                        initial="enter"
-                        animate="center"
-                        exit="exit"
-                        style={{ filter: 'none', colorScheme: 'light' }}
-                        className={cn(
-                          "absolute shadow-[0_20px_60px_rgba(0,0,0,0.5)] overflow-hidden rounded-2xl border border-white/10 select-none",
-                          "bg-[#ffffff]" // Force pure white to ensure exact color fidelity and prevent transparency shift
-                        )}
-                      >
-                        <Page 
-                          pageNumber={currentPage} 
-                          renderTextLayer={false} 
-                          renderAnnotationLayer={false}
-                          devicePixelRatio={4} // Enforce 300+ DPI equivalents
-                          width={getPageDimensions().width}
-                          scale={getPageDimensions().scale}
-                          className="max-w-full object-contain mx-auto select-none pointer-events-none pdf-page-wrapper"
-                          loading={
-                            <div className="flex flex-col items-center justify-center p-24 gap-3">
-                              <div className="w-10 h-10 border-4 border-gold-accent border-t-transparent rounded-full animate-spin" />
-                              <span className="text-[10px] text-white/40 font-bold">جاري التهيئة...</span>
-                            </div>
-                          }
-                        />
-                      </motion.div>
-                    </AnimatePresence>
-
-                    {/* background Smart Cache Queue: Render neighboring pages invisible to force browser pre-caching */}
-                    <div style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', top: '-9999px' }}>
-                      {currentPage > 1 && (
-                        <Page 
-                          pageNumber={currentPage - 1} 
-                          renderTextLayer={false} 
-                          renderAnnotationLayer={false}
-                          devicePixelRatio={1}
-                          width={100}
-                          scale={1} 
-                          className="pdf-page-wrapper"
-                        />
-                      )}
-                      {numPages && currentPage < numPages && (
-                        <Page 
-                          pageNumber={currentPage + 1} 
-                          renderTextLayer={false} 
-                          renderAnnotationLayer={false}
-                          devicePixelRatio={1}
-                          width={100}
-                          scale={1} 
-                          className="pdf-page-wrapper"
-                        />
-                      )}
-                    </div>
-                  </Document>
+                  <div className="space-y-5 pb-12 select-text">
+                    {surahTextData.ayahs.map((ayah: any, idx: number) => {
+                      const cleanText = getCleanVerseText(ayah, idx);
+                      return (
+                        <div 
+                          key={ayah.number} 
+                          className={cn(
+                            "p-5 rounded-3xl border transition-colors cursor-pointer",
+                            isNightMode 
+                              ? "bg-white/[0.02] border-white/5 hover:bg-white/[0.04]" 
+                              : "bg-emerald-950/[0.02] border-emerald-950/5 hover:bg-emerald-950/[0.04]"
+                          )}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (ayah.page) {
+                              setCurrentPage(ayah.page);
+                              onProgressUpdate(surah.number, ayah.page);
+                            }
+                          }}
+                        >
+                          <div className="flex justify-between items-center gap-4 mb-3.5 border-b border-white/5 pb-2.5">
+                            <span className="text-[9px] font-black text-gold-accent bg-gold-accent/10 px-3 py-1 rounded-full arabic-text-sans select-none">
+                              الآية {ayah.numberInSurah}
+                            </span>
+                            <span className="text-[9px] text-white/30 font-black arabic-text-sans select-none">
+                              صفحة {ayah.page}
+                            </span>
+                          </div>
+                          <p 
+                            className="arabic-text text-right leading-[1.8] tracking-wide" 
+                            style={{ fontSize: `${textFontSize}px` }}
+                          >
+                            {cleanText}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
-              </TransformComponent>
-          </TransformWrapper>
+              </div>
+            ) : null}
           </div>
-        </div>
-      </main>
+        </main>
+      )}
 
       {/* Floating Bottom Navigation And Zoom App Bar */}
       <AnimatePresence>
@@ -572,27 +795,55 @@ export default function SurahReader({ surah, onBack, onProgressUpdate, fontSize,
             className="flex-none z-50 p-4 pb-safe bg-[#00140a]/90 backdrop-blur-xl border-t border-white/5 shadow-2xl overflow-hidden"
           >
             <div className="flex items-center gap-4 max-w-4xl mx-auto w-full no-toggle">
-              {/* Zoom Controls segment */}
+              {/* Zoom / Font Size controls segment */}
               <div className="flex bg-white/5 border border-white/5 rounded-[1.8rem] p-1 gap-1">
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleZoomIn(); resetControlsTimeout(); }} 
-                  className="w-10 h-10 bg-white/5 rounded-[1.4rem] flex items-center justify-center text-white hover:bg-gold-accent hover:text-black transition-all active:scale-90"
-                >
-                  <ZoomIn size={18} />
-                </button>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleResetZoom(); resetControlsTimeout(); }} 
-                  className="w-10 h-10 bg-white/5 rounded-[1.4rem] flex items-center justify-center text-white/50 hover:text-gold-accent hover:bg-white/10 transition-all active:scale-90"
-                  title="إعادة التكبير للأصل"
-                >
-                  <RotateCcw size={15} />
-                </button>
-                <button 
-                  onClick={(e) => { e.stopPropagation(); handleZoomOut(); resetControlsTimeout(); }} 
-                  className="w-10 h-10 bg-white/5 rounded-[1.4rem] flex items-center justify-center text-white hover:bg-gold-accent hover:text-black transition-all active:scale-90"
-                >
-                  <ZoomOut size={18} />
-                </button>
+                {readerMode === 'pdf' ? (
+                  <>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleZoomIn(); resetControlsTimeout(); }} 
+                      className="w-10 h-10 bg-white/5 rounded-[1.4rem] flex items-center justify-center text-white hover:bg-gold-accent hover:text-black transition-all active:scale-90"
+                    >
+                      <ZoomIn size={18} />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleResetZoom(); resetControlsTimeout(); }} 
+                      className="w-10 h-10 bg-white/5 rounded-[1.4rem] flex items-center justify-center text-white/50 hover:text-gold-accent hover:bg-white/10 transition-all active:scale-90"
+                      title="إعادة التكبير للأصل"
+                    >
+                      <RotateCcw size={15} />
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleZoomOut(); resetControlsTimeout(); }} 
+                      className="w-10 h-10 bg-white/5 rounded-[1.4rem] flex items-center justify-center text-white hover:bg-gold-accent hover:text-black transition-all active:scale-90"
+                    >
+                      <ZoomOut size={18} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleTextZoomIn(); resetControlsTimeout(); }} 
+                      className="w-10 h-10 bg-white/5 rounded-[1.4rem] flex items-center justify-center text-gold-accent hover:bg-gold-accent hover:text-black transition-all active:scale-90 font-bold"
+                      title="تكبير الخط"
+                    >
+                      A+
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setTextFontSize(fontSize || 24); resetControlsTimeout(); }} 
+                      className="w-10 h-10 bg-white/5 rounded-[1.4rem] flex items-center justify-center text-white/50 hover:text-gold-accent hover:bg-white/10 transition-all active:scale-90 font-bold text-xs"
+                      title="حجم الخط الافتراضي"
+                    >
+                      A
+                    </button>
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); handleTextZoomOut(); resetControlsTimeout(); }} 
+                      className="w-10 h-10 bg-white/5 rounded-[1.4rem] flex items-center justify-center text-gold-accent hover:bg-gold-accent hover:text-black transition-all active:scale-90 font-bold"
+                      title="تصغير الخط"
+                    >
+                      A-
+                    </button>
+                  </>
+                )}
               </div>
 
               {/* Page indicator and tracking progress bar */}
