@@ -1,4 +1,5 @@
 import { APISurah } from '../types';
+import { OfflineAudioService } from './offlineAudio';
 
 export interface AudioPlayerState {
   isPlaying: boolean;
@@ -20,6 +21,7 @@ class AudioPlayerServiceImpl {
   private listeners: Set<AudioListener> = new Set();
   private updateInterval: any = null;
   private playPromise: Promise<void> | null = null;
+  private activeBlobUrl: string | null = null;
   
   // List of all suwar context for auto-advancing
   private suwarList: APISurah[] = [];
@@ -198,7 +200,13 @@ class AudioPlayerServiceImpl {
     this.notifyListeners();
 
     try {
-      this.audio.src = finalUrl;
+      // Get play url from offline cache service (it returns a blob URL if cached, or finalUrl if not)
+      const playUrl = await OfflineAudioService.getAudioUrl(finalUrl);
+      if (playUrl.startsWith('blob:')) {
+        this.activeBlobUrl = playUrl;
+      }
+      
+      this.audio.src = playUrl;
       this.audio.playbackRate = this.state.playbackRate;
       this.audio.load();
       const p = this.audio.play();
@@ -257,6 +265,12 @@ class AudioPlayerServiceImpl {
     try {
       this.audio.pause();
     } catch (e) {}
+
+    // Revoke object URL to prevent memory leaks
+    if (this.activeBlobUrl) {
+      URL.revokeObjectURL(this.activeBlobUrl);
+      this.activeBlobUrl = null;
+    }
 
     try {
       this.audio.removeAttribute('src');

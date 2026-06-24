@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutGrid,
@@ -63,8 +63,13 @@ export default function App() {
     localStorage.setItem('quran_light_state', JSON.stringify(state));
   }, [state]);
 
+  const mainRef = useRef<HTMLElement>(null);
+
   // Scroll to top on screen change
   useEffect(() => {
+    if (mainRef.current) {
+      mainRef.current.scrollTop = 0;
+    }
     window.scrollTo({ top: 0, behavior: 'instant' });
     document.documentElement.scrollTo({ top: 0, behavior: 'instant' });
     document.body.scrollTo({ top: 0, behavior: 'instant' });
@@ -125,7 +130,7 @@ export default function App() {
       </div>
 
       {/* Main Container Content */}
-      <main className="flex-1 relative z-10 overflow-y-auto pb-32">
+      <main ref={mainRef} className="flex-1 relative z-10 overflow-y-auto pb-32">
         <AnimatePresence mode="wait">
           {currentScreen === 'home' && (
             <motion.div

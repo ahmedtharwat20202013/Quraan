@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Search, 
@@ -16,11 +16,16 @@ import {
   Gauge,
   Disc,
   ListRestart,
-  Heart
+  Heart,
+  Download,
+  Trash2,
+  Check,
+  Loader2
 } from 'lucide-react';
 import { Reciter, APISurah, Moshaf } from '../types';
 import { QuranApiService } from '../services/api';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
+import { OfflineAudioService } from '../services/offlineAudio';
 import { cn } from '../lib/utils';
 
 export default function RecitationsSection() {
@@ -47,6 +52,128 @@ export default function RecitationsSection() {
   
   // Custom audio player hook
   const audioPlayer = useAudioPlayer();
+
+  // Offline audio states & subscriptions
+  const [offlineState, setOfflineState] = useState(() => OfflineAudioService.getState());
+  const [reciterDownloadedSize, setReciterDownloadedSize] = useState<number>(0);
+  const [batchDownloading, setBatchDownloading] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = OfflineAudioService.subscribe((state) => {
+      setOfflineState(state);
+    });
+    return unsubscribe;
+  }, []);
+
+  // Helper to construct Surah Audio URL
+  const getSurahUrl = useCallback((surahId: number) => {
+    if (!selectedMoshaf) return '';
+    const serverUrl = selectedMoshaf.server;
+    const baseUrl = serverUrl.endsWith('/') ? serverUrl : `${serverUrl}/`;
+    const paddedNum = String(surahId).padStart(3, '0');
+    return `${baseUrl}${paddedNum}.mp3`;
+  }, [selectedMoshaf]);
+
+  // Check if a Surah is available in the currently selected Moshaf's list
+  const isSurahAvailable = useCallback((surahId: number): boolean => {
+    if (!selectedMoshaf || !selectedMoshaf.surah_list) return true; // Fail-safe
+    const availableSuwar = selectedMoshaf.surah_list.split(',').map(s => parseInt(s.trim(), 10));
+    return availableSuwar.includes(surahId);
+  }, [selectedMoshaf]);
+
+  // Track the total downloaded size on the device for this specific Qari'
+  useEffect(() => {
+    if (!selectedReciter) return;
+    
+    let isMounted = true;
+    const fetchDownloadedSize = async () => {
+      const all = await OfflineAudioService.getAllDownloads();
+      const filtered = all.filter(d => d.reciterName === selectedReciter.name);
+      const totalSize = filtered.reduce((acc, curr) => acc + curr.size, 0);
+      if (isMounted) {
+        setReciterDownloadedSize(totalSize);
+      }
+    };
+    
+    fetchDownloadedSize();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedReciter, offlineState.downloadedUrls]);
+
+  // Action: Download single Surah
+  const handleDownloadSurah = async (surah: APISurah, e: React.MouseEvent) => {
+    e.stopPropagation(); // prevent playing track when clicking download
+    if (!selectedReciter || !selectedMoshaf) return;
+    const url = getSurahUrl(surah.id);
+    if (!url) return;
+    
+    await OfflineAudioService.downloadSurah(
+      url,
+      surah,
+      selectedReciter.name,
+      selectedMoshaf.name
+    );
+  };
+
+  // Action: Delete offline Surah
+  const handleDeleteDownload = async (surahId: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // prevent playing
+    const url = getSurahUrl(surahId);
+    if (!url) return;
+    await OfflineAudioService.deleteDownload(url);
+  };
+
+  // Action: Download all available Suras for this Qari'
+  const handleDownloadAll = async () => {
+    if (!selectedReciter || !selectedMoshaf || batchDownloading) return;
+    
+    // Filter available suwar that aren't already downloaded
+    const toDownload = suwar.filter(s => {
+      const available = isSurahAvailable(s.id);
+      const url = getSurahUrl(s.id);
+      return available && url && !offlineState.downloadedUrls.has(url);
+    });
+
+    if (toDownload.length === 0) {
+      alert('جميع سور هذا القارئ محملة بالفعل على جهازك!');
+      return;
+    }
+
+    setBatchDownloading(true);
+    
+    const batchItems = toDownload.map(surah => ({
+      url: getSurahUrl(surah.id),
+      surah,
+      reciterName: selectedReciter.name,
+      moshafName: selectedMoshaf.name
+    }));
+
+    try {
+      await OfflineAudioService.downloadBatch(batchItems);
+    } catch (err) {
+      console.error('Batch download failed:', err);
+    } finally {
+      setBatchDownloading(false);
+    }
+  };
+
+  // Calculate statistics for this Qari'
+  const reciterStats = useMemo(() => {
+    if (!selectedReciter || !selectedMoshaf) return { total: 0, downloaded: 0, percentage: 0 };
+    
+    const availableSuwar = suwar.filter(s => isSurahAvailable(s.id));
+    const total = availableSuwar.length;
+    const downloaded = availableSuwar.filter(s => {
+      const url = getSurahUrl(s.id);
+      return url && offlineState.downloadedUrls.has(url);
+    }).length;
+    
+    const percentage = total > 0 ? Math.round((downloaded / total) * 100) : 0;
+    
+    return { total, downloaded, percentage };
+  }, [selectedReciter, selectedMoshaf, suwar, offlineState.downloadedUrls, getSurahUrl]);
 
   const toggleFavoriteReciter = (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -126,13 +253,6 @@ export default function RecitationsSection() {
     } else {
       setSelectedMoshaf(null);
     }
-  };
-
-  // Check if a Surah is available in the currently selected Moshaf's list
-  const isSurahAvailable = (surahId: number): boolean => {
-    if (!selectedMoshaf || !selectedMoshaf.surah_list) return true; // Fail-safe
-    const availableSuwar = selectedMoshaf.surah_list.split(',').map(s => parseInt(s.trim(), 10));
-    return availableSuwar.includes(surahId);
   };
 
   // Format second counts to MM:SS
@@ -342,6 +462,74 @@ export default function RecitationsSection() {
               </div>
             </motion.div>
           </div>
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="glass-card p-6 border border-white/10 rounded-[2rem] space-y-4"
+          >
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h4 className="font-extrabold text-white text-sm">الاستماع بدون اتصال بالإنترنت (أوفلاين)</h4>
+                <p className="text-white/40 text-[11px] font-bold mt-1">
+                  قم بتحميل السور المفضلة لديك لتشغيلها مباشرة في أي وقت دون استهلاك باقة الإنترنت.
+                </p>
+              </div>
+              
+              <button
+                onClick={handleDownloadAll}
+                disabled={batchDownloading || reciterStats.downloaded === reciterStats.total}
+                className={cn(
+                  "px-4 py-2.5 rounded-xl font-black text-xs flex items-center gap-2 transition-all shadow-md shrink-0 w-full sm:w-auto justify-center",
+                  batchDownloading 
+                    ? "bg-white/10 text-white/50 cursor-not-allowed"
+                    : reciterStats.downloaded === reciterStats.total
+                      ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 cursor-default"
+                      : "bg-gold-accent text-emerald-950 hover:scale-[1.02] active:scale-95 cursor-pointer"
+                )}
+              >
+                {batchDownloading ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>جاري تحميل الكل...</span>
+                  </>
+                ) : reciterStats.downloaded === reciterStats.total ? (
+                  <>
+                    <Check size={14} />
+                    <span>تم تحميل كل السور المتاحة</span>
+                  </>
+                ) : (
+                  <>
+                    <Download size={14} />
+                    <span>تنزيل جميع السور المتاحة ({reciterStats.total - reciterStats.downloaded})</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Stats & Progress Bar */}
+            <div className="pt-2 border-t border-white/5 flex flex-col gap-3">
+              <div className="flex justify-between items-center text-xs font-bold text-white/60">
+                <span className="flex items-center gap-1.5">
+                  <span>الملفات المحملة:</span>
+                  <span className="text-gold-accent">{reciterStats.downloaded} سورة من أصل {reciterStats.total}</span>
+                </span>
+                {reciterDownloadedSize > 0 && (
+                  <span className="text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full text-[10px] font-black">
+                    الحجم الإجمالي: {OfflineAudioService.formatSize(reciterDownloadedSize)}
+                  </span>
+                )}
+              </div>
+
+              {reciterStats.total > 0 && (
+                <div className="w-full bg-white/5 h-2 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-gradient-to-l from-gold-bright to-gold-accent h-full rounded-full transition-all duration-500"
+                    style={{ width: `${reciterStats.percentage}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          </motion.div>
 
           {/* Surah List Title */}
           <div>
@@ -357,6 +545,9 @@ export default function RecitationsSection() {
               const available = isSurahAvailable(surah.id);
               const isCurrent = audioPlayer.currentSurahNumber === surah.id && 
                                 audioPlayer.currentReciterName === selectedReciter.name;
+              const surahUrl = getSurahUrl(surah.id);
+              const isDownloaded = offlineState.downloadedUrls.has(surahUrl);
+              const downloadProgress = offlineState.downloadProgress.get(surahUrl);
               
               return (
                 <motion.div
@@ -392,26 +583,68 @@ export default function RecitationsSection() {
                     </div>
                   </div>
 
-                  {/* Play audio states */}
-                  <div className="flex items-center gap-3">
-                    {isCurrent ? (
-                      audioPlayer.isPlaying ? (
-                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gold-accent/20 rounded-full text-gold-accent text-[9px] font-black">
-                          <span className="w-2 h-2 rounded-full bg-gold-accent animate-ping" />
-                          <span>جاري التشغيل</span>
-                        </div>
-                      ) : (
-                        <div className="text-white/40 group-hover:text-gold-accent">
-                          <Play size={18} fill="currentColor" />
-                        </div>
-                      )
-                    ) : (
-                      available && (
-                        <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:bg-gold-accent group-hover:text-emerald-950 transition-all">
-                          <Play size={12} fill="currentColor" />
-                        </div>
-                      )
+                  {/* Actions (Play & Download/Offline States) */}
+                  <div className="flex items-center gap-4 relative z-20">
+                    {/* Offline Cache state indicators */}
+                    {available && (
+                      <div className="flex items-center gap-2">
+                        {downloadProgress?.isDownloading ? (
+                          <div className="flex flex-col items-center justify-center min-w-[70px]">
+                            <div className="flex items-center gap-1 text-[10px] text-gold-accent font-black animate-pulse">
+                              <Loader2 size={12} className="animate-spin text-gold-accent" />
+                              <span>{downloadProgress.progress}%</span>
+                            </div>
+                            <span className="text-[8px] text-white/30 font-bold mt-0.5">
+                              {OfflineAudioService.formatSize(downloadProgress.loaded)}
+                            </span>
+                          </div>
+                        ) : isDownloaded ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-black flex items-center gap-1">
+                              <Check size={10} strokeWidth={3} />
+                              <span>محملة</span>
+                            </span>
+                            <button
+                              onClick={(e) => handleDeleteDownload(surah.id, e)}
+                              className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/10 hover:text-rose-400 text-white/20 transition-all"
+                              title="حذف السورة من الجهاز"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={(e) => handleDownloadSurah(surah, e)}
+                            className="p-2 rounded-xl bg-white/5 hover:bg-gold-accent hover:text-emerald-950 text-white/30 transition-all"
+                            title="تحميل السورة للتشغيل أوفلاين"
+                          >
+                            <Download size={14} />
+                          </button>
+                        )}
+                      </div>
                     )}
+
+                    {/* Play Button State */}
+                    <div>
+                      {isCurrent ? (
+                        audioPlayer.isPlaying ? (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gold-accent/20 rounded-full text-gold-accent text-[9px] font-black">
+                            <span className="w-2 h-2 rounded-full bg-gold-accent animate-ping" />
+                            <span>جاري التشغيل</span>
+                          </div>
+                        ) : (
+                          <div className="text-white/40 group-hover:text-gold-accent">
+                            <Play size={18} fill="currentColor" />
+                          </div>
+                        )
+                      ) : (
+                        available && (
+                          <div className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 group-hover:bg-gold-accent group-hover:text-emerald-950 transition-all">
+                            <Play size={12} fill="currentColor" />
+                          </div>
+                        )
+                      )}
+                    </div>
                   </div>
                 </motion.div>
               );
